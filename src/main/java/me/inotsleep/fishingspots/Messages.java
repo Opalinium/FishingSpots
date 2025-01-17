@@ -13,31 +13,31 @@ public class Messages extends AbstractConfig {
         super(plugin, "messages.yml");
     }
 
-    @Path(path="progress.char.background")
+    @Path(value="progress.char.background")
     public static String charBackground = "&8█";
-    @Path(path="progress.char.main")
+    @Path(value="progress.char.main")
     public static String charMain = "█";
-    @Path(path="progress.char.current")
+    @Path(value="progress.char.current")
     public static String charCurrent = "&b❮";
-    @Path(path="progress.length")
+    @Path(value="progress.length")
     public static int length = 20;
-    @Path(path="progress.format")
+    @Path(value="progress.format")
     public static String format = "&a☑&r {0} &4☒";
-    @Path(path = "progress.hookDamageColors")
+    @Path(value = "progress.hookDamageColors")
     public static List<String> rawColors = Arrays.asList("0.0|&7", "0.25|&e", "0.5|&6", "0.75|&4");
 
-    @Path(path="game.start")
+    @Path(value="game.start")
     public static String start = "Something on a hook...";
-    @Path(path="game.loose.line")
+    @Path(value="game.loose.line")
     public static String looseLine = "Crap! The fishing line broke.";
-    @Path(path="game.loose.loose")
+    @Path(value="game.loose.loose")
     public static String looseLoose = "The fish escaped :(";
-    @Path(path="game.loose.noFishingRod")
+    @Path(value="game.loose.noFishingRod")
     public static String looseNoFishingRod = "You put down your fishing rod and let go of the fish.";
-    @Path(path="game.win")
+    @Path(value="game.win")
     public static String win = "You catch the fish!";
 
-    @Path(path="messages.noPermission")
+    @Path(value="messages.noPermission")
     public static String noPermission = "&4&lYou don't have permission to perform this command.";
 
 

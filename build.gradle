@@ -20,8 +20,8 @@ repositories {
 }
 
 dependencies {
-    compileOnly "org.spigotmc:spigot-api:1.16.5-R0.1-SNAPSHOT"
-    implementation("me.inotsleep:utils:1.0.2")
+    compileOnly "org.spigotmc:spigot-api:1.21.1-R0.1-SNAPSHOT"
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
 }
 
 shadowJar {

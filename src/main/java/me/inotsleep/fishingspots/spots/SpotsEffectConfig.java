@@ -10,10 +10,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SpotsEffectConfig extends AbstractConfig {
-    @Path(path = "effects")
+    @Path(value = "effects")
     public static Map<String, SpotEffect> effects;
 
-    @Path(path = "animations")
+    @Path(value = "animations")
     public static Map<String, Animation> animations;
     public SpotsEffectConfig(AbstractPlugin plugin) {
         super(plugin, "spotsEffects.yml");

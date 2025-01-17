@@ -12,134 +12,205 @@ import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.FishHook;
-import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
-import org.bukkit.inventory.meta.ItemMeta;
 
 public class Game {
-    Player player;
-    Spot spot;
-    SpotEffect effect;
-    double line = 0;
-    double catching = 0;
-    FishHook hook;
-    boolean end = false;
+    // Core references
+    final Player player;
+    private final Spot spot;
+    private final SpotEffect effect;
+    private final FishHook hook;
 
-    public Game(Player player, Spot spot, FishHook hook) {
-        this.hook = hook;
+    // Ephemeral item caught from vanilla fishing logic
+    private final ItemStack ephemeralItem;
+
+    // Minigame tracking
+    private double line = 0;
+    private double catching = 0;
+    private boolean end = false;
+
+    /**
+     * Constructor that includes an ephemeralItem if one was intercepted by the Listener.
+     */
+    public Game(Player player, Spot spot, FishHook hook, ItemStack ephemeralItem) {
         this.player = player;
         this.spot = spot;
-        this.effect = spot.getEffect();
+        this.hook = hook;
+        this.ephemeralItem = ephemeralItem;
+        this.effect = (spot != null) ? spot.getEffect() : null;
     }
+
     public void tick() {
         if (end) return;
-        if (!player.isOnline()) {
+
+        if (!player.isOnline() || hook.isDead()) {
             stopGame(Reason.UNKNOWN);
             return;
         }
-        if (hook.isDead()) {
-            stopGame(Reason.UNKNOWN);
-            return;
+
+        // Adjust line and catching (progress) based on SpotEffect or default
+        if (effect != null) {
+            line = Math.max(line - effect.getLineRestore().generate(), 0);
+            catching = Math.max(catching - effect.getCatchingRegress().generate(), -1);
+        } else {
+            line = Math.max(line - 0.02, 0);
+            catching = Math.max(catching - 0.01, -1);
         }
-        line -= effect.getLineRestore().generate();
-        line = Math.max(line, 0);
-        catching -= effect.getCatchingRegress().generate();
-        catching = Math.max(catching, -1);
+
+        // If catching is fully regressed, the fish is lost
         if (catching <= -1) {
             stopGame(Reason.LOOSE);
+        } else {
+            print();
         }
-        print();
     }
 
     public void click() {
         if (end) return;
-        line += effect.getLineDamage().generate();
-        line = Math.min(line, 1);
-        catching += effect.getCatchingProgress().generate();
-        catching = Math.min(catching, 1);
+
+        // Increase line/catching on click
+        if (effect != null) {
+            line = Math.min(line + effect.getLineDamage().generate(), 1);
+            catching = Math.min(catching + effect.getCatchingProgress().generate(), 1);
+        } else {
+            line = Math.min(line + 0.3, 1);
+            catching = Math.min(catching + 0.2, 1);
+        }
+
+        // If the line hits max, it snaps; if catching hits max, fish is caught
         if (line >= 1) {
             stopGame(Reason.LINE);
-        }
-        if (catching >= 1) {
+        } else if (catching >= 1) {
             stopGame(Reason.CATCH);
         }
     }
 
     public void stopGame(Reason reason) {
         end = true;
+
         switch (reason) {
-            case LINE: {
-                this.player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', Messages.looseLine)));
+            case LINE:
+                // The fishing line snapped
+                sendActionBarMessage(Messages.looseLine);
                 damageHook();
                 break;
-            }
-            case CATCH: {
-                this.player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', Messages.win)));
-                DropItems dropItem = null;
-                try {
-                    dropItem = FishingSpots.rewardsConfig.items.get(Utils.generateRarity(FishingSpots.rewardsConfig.rarities.get(spot.getRarity())));
-                } catch (Exception e) {
-                    FishingSpots.getInstance().getLogger().severe("Invalid rewards.yml configuration. Rarities do not have 100% rarity!");
-                    Bukkit.getPluginManager().disablePlugin(FishingSpots.getInstance());
+
+            case CATCH:
+                // The player successfully caught the fish
+                sendActionBarMessage(Messages.win);
+
+                if (spot != null) {
+                    // If there's a custom spot, optionally do custom awarding logic
+                    handleCustomSpotLoot();
+                } else {
+                    // Return the ephemeral item if we have one
+                    handleEphemeralItemReward();
                 }
-                if (dropItem == null) return;
-                ItemStack stack = dropItem.itemStack.clone();
-                stack.setAmount((int) Utils.random(dropItem.min, dropItem.max));
-                Item item = (Item) hook.getWorld().spawnEntity(hook.getLocation(), EntityType.DROPPED_ITEM);
-                item.setItemStack(stack);
-                hook.setHookedEntity(item);
-                hook.pullHookedEntity();
                 damageHook();
                 break;
-            }
-            case LOOSE: {
-                this.player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', Messages.looseLoose)));
+
+            case LOOSE:
+                // The fish got away
+                sendActionBarMessage(Messages.looseLoose);
                 damageHook();
                 break;
-            }
-            case UNKNOWN: {
-                if (player.isOnline()) this.player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', Messages.looseNoFishingRod)));
+
+            case UNKNOWN:
+                if (player.isOnline()) {
+                    sendActionBarMessage(Messages.looseNoFishingRod);
+                }
                 break;
+        }
+
+        // Cleanup
+        GameManager.removeGame(this);
+        if (spot != null) {
+            SpotsManager.removeSpot(spot);
+        }
+    }
+
+    private void handleCustomSpotLoot() {
+        DropItems dropItem = null;
+        try {
+            dropItem = FishingSpots.rewardsConfig.items.get(
+                    Utils.generateRarity(FishingSpots.rewardsConfig.rarities.get(spot.getRarity()))
+            );
+        } catch (Exception e) {
+            FishingSpots.getInstance().getLogger().severe(
+                    "Invalid rewards.yml configuration. Rarities do not have 100% rarity!"
+            );
+            Bukkit.getPluginManager().disablePlugin(FishingSpots.getInstance());
+        }
+
+        if (dropItem != null) {
+            ItemStack stack = dropItem.itemStack.clone();
+            stack.setAmount((int) Utils.random(dropItem.min, dropItem.max));
+            player.getInventory().addItem(stack);
+        }
+    }
+
+    private void handleEphemeralItemReward() {
+        if (ephemeralItem != null && ephemeralItem.getType() != Material.AIR) {
+            // Give the item back to the player
+            player.getInventory().addItem(ephemeralItem);
+        }
+    }
+
+    private void damageHook() {
+        // Increase damage on whichever fishing rod the player is using
+        ItemStack stack = player.getInventory().getItemInMainHand();
+        if (stack.getType() != Material.FISHING_ROD) {
+            stack = player.getInventory().getItemInOffHand();
+        }
+
+        if (stack.getType() == Material.FISHING_ROD) {
+            Damageable meta = (Damageable) stack.getItemMeta();
+            if (meta != null) {
+                meta.setDamage(meta.hasDamage() ? meta.getDamage() + 1 : 1);
+                stack.setItemMeta(meta);
             }
         }
 
-        SpotsManager.removeSpot(spot);
-        GameManager.removeGame(this);
-
-    }
-
-    void damageHook() {
-        ItemStack stack = player.getInventory().getItemInMainHand();
-        stack = stack.getType() == Material.FISHING_ROD ? stack : player.getInventory().getItemInOffHand();
-        Damageable meta = (Damageable) stack.getItemMeta();
-        meta.setDamage(meta.hasDamage() ? meta.getDamage()+1 : 1);
-        stack.setItemMeta((ItemMeta) meta);
+        // Remove the bobber from the world
         hook.remove();
     }
 
+    private void sendActionBarMessage(String message) {
+        player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+                TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', message)));
+    }
+
+    /**
+     * Renders the "progress bar" for the fish-catching minigame in the action bar.
+     */
     private void print() {
         int length = Messages.length;
-        int progress = (int) (length - Math.floor(length *(catching+1)/2));
-        String main = ChatColor.translateAlternateColorCodes('&', Messages.charMain);
-        String bkg = ChatColor.translateAlternateColorCodes('&', Messages.charBackground);
-        String curr = ChatColor.translateAlternateColorCodes('&', Messages.charCurrent);
-        String color = Messages.getColor(line);
+        int progress = (int) (length - Math.floor(length * (catching + 1) / 2));
         StringBuilder str = new StringBuilder();
-        for (int i = 0; i<length; i++) {
+
+        for (int i = 0; i < length; i++) {
             if (progress > 0) {
                 progress--;
-                str.append(progress == 0 ? "&r" + curr : color + main);
-            } else str.append("&r"+bkg);
+                str.append(progress == 0
+                        ? "&r" + Messages.charCurrent
+                        : Messages.getColor(line) + Messages.charMain);
+            } else {
+                str.append("&r").append(Messages.charBackground);
+            }
         }
+
         if (!player.isOnline()) {
             stopGame(Reason.UNKNOWN);
             return;
         }
-        player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', MessageUtil.parsePlaceholders(Messages.format, str.toString()))));
+
+        // Display the bar
+        player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+                TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&',
+                        MessageUtil.parsePlaceholders(Messages.format, str.toString()))));
     }
 
     public enum Reason {

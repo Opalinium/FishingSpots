@@ -11,21 +11,21 @@ import java.util.List;
 import java.util.Map;
 
 public class Config extends AbstractConfig {
-    @Path(path = "settings.rarityChances")
+    @Path(value = "settings.rarityChances")
     public Map<String, Double> rarities;
 
-    @Path(path = "settings.allowedBlocks")
+    @Path(value = "settings.allowedBlocks")
     public List<String> allowedBlocks = Collections.singletonList("WATER");
 
-    @Path(path="settings.ticksPerPlaceSpawn")
+    @Path(value="settings.ticksPerPlaceSpawn")
     public static int ticksPerPlaceSpawn = 20;
-    @Path(path="settings.placeSpawnChance")
+    @Path(value="settings.placeSpawnChance")
     public static double placeSpawnChance = 0.1d;
-    @Path(path="settings.waterFindAttempts")
+    @Path(value="settings.waterFindAttempts")
     public static int waterFindAttempts = 3;
-    @Path(path="settings.spawnRange.min")
+    @Path(value="settings.spawnRange.min")
     public static double spawnRangeMin = 20d;
-    @Path(path="settings.spawnRange.max")
+    @Path(value="settings.spawnRange.max")
     public static double spawnRangeMax = 50d;
 
     public Config(AbstractPlugin plugin) {

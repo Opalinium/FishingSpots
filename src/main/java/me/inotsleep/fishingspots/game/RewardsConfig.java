@@ -10,10 +10,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RewardsConfig extends AbstractConfig {
-    @Path(path = "rarities")
+    @Path(value = "rarities")
     public Map<String, Map<String, Double>> rarities;
 
-    @Path(path = "items")
+    @Path(value = "items")
     public Map<String, DropItems> items;
 
     public RewardsConfig(AbstractPlugin plugin) {
