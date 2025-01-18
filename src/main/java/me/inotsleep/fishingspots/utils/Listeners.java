@@ -9,53 +9,69 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerFishEvent;
+import org.bukkit.event.player.PlayerFishEvent.State;
 import org.bukkit.inventory.ItemStack;
 
 public class Listeners implements Listener {
 
-    @EventHandler(ignoreCancelled = true)
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onFish(PlayerFishEvent event) {
         Player player = event.getPlayer();
+        Game ongoingGame = GameManager.getGame(player);
+        State state = event.getState();
 
-        // If the player is already in a minigame, just handle the existing game logic
-        if (GameManager.getGame(player) != null) {
-            if (event.getState() == PlayerFishEvent.State.CAUGHT_FISH
-                    || event.getState() == PlayerFishEvent.State.REEL_IN) {
-                event.setCancelled(true);
-                GameManager.getGame(player).click();
-            } else if (event.getState() == PlayerFishEvent.State.BITE) {
-                event.setCancelled(true);
+        if (ongoingGame != null) {
+            switch (state) {
+                case REEL_IN:
+                    event.setCancelled(true);
+                    ongoingGame.click();
+                    break;
+
+                case CAUGHT_FISH:
+                    if (event.getCaught() instanceof Item) {
+                        event.getCaught().remove();
+                    }
+                    event.setCancelled(true);
+                    break;
+
+                case BITE:
+                default:
+                    event.setCancelled(true);
+                    break;
             }
             return;
         }
 
-        // Only proceed if the fish is actually caught
-        if (event.getState() != PlayerFishEvent.State.CAUGHT_FISH) {
+        if (state != State.CAUGHT_FISH) {
             return;
         }
 
-        // We want to intercept the "vanilla" caught item
-        Entity caughtEntity = event.getCaught();
 
-        // Cancel so the vanilla item doesn't go into the player's inventory
-        event.setCancelled(true);
-
-        // If there's something actually caught, remove it from the world and store an ephemeral item
-        ItemStack ephemeralItem = null;
-        if (caughtEntity instanceof Item) {
-            Item caughtItem = (Item) caughtEntity;
-            ephemeralItem = caughtItem.getItemStack().clone(); // store a copy
-            caughtItem.remove();                               // remove it from the world
+        if (event.isCancelled()) {
+            event.setCancelled(false);
         }
 
-        // Lock the spot if applicable
+        Entity caughtEntity = event.getCaught();
+        if (!(caughtEntity instanceof Item)) {
+            return;
+        }
+
+        Item caughtItem = (Item) caughtEntity;
+        ItemStack ephemeralItem = caughtItem.getItemStack().clone();
+        caughtItem.remove();
+
+        event.setCancelled(true);
+
         Location hookLocation = event.getHook().getLocation();
         Spot spot = SpotsManager.findSpot(hookLocation);
         if (spot != null) {
             spot.lock();
         }
+
 
         GameManager.addGame(new Game(player, spot, event.getHook(), ephemeralItem));
     }

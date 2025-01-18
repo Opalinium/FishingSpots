@@ -76,7 +76,7 @@ public class Game {
             line = Math.min(line + effect.getLineDamage().generate(), 1);
             catching = Math.min(catching + effect.getCatchingProgress().generate(), 1);
         } else {
-            line = Math.min(line + 0.3, 1);
+            line = Math.min(line + 0.25, 1);
             catching = Math.min(catching + 0.2, 1);
         }
 
@@ -160,17 +160,30 @@ public class Game {
     }
 
     private void damageHook() {
-        // Increase damage on whichever fishing rod the player is using
-        ItemStack stack = player.getInventory().getItemInMainHand();
-        if (stack.getType() != Material.FISHING_ROD) {
-            stack = player.getInventory().getItemInOffHand();
+        ItemStack rod = player.getInventory().getItemInMainHand();
+        if (rod.getType() != Material.FISHING_ROD) {
+            rod = player.getInventory().getItemInOffHand();
         }
-
-        if (stack.getType() == Material.FISHING_ROD) {
-            Damageable meta = (Damageable) stack.getItemMeta();
+        if (rod.getType() == Material.FISHING_ROD) {
+            Damageable meta = (Damageable) rod.getItemMeta();
             if (meta != null) {
-                meta.setDamage(meta.hasDamage() ? meta.getDamage() + 1 : 1);
-                stack.setItemMeta(meta);
+                if (meta.isUnbreakable()) { return;
+                } else {
+                    int unbreakingLevel = rod.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.UNBREAKING);
+                    boolean ignoreDamage = false;
+                    if (unbreakingLevel > 0) {
+                        double chanceToIgnore = unbreakingLevel / (double)(unbreakingLevel + 1);
+                        if (Math.random() < chanceToIgnore) {
+                            ignoreDamage = true;
+                        }
+                    }
+
+                    if (!ignoreDamage) {
+                        int newDamage = meta.hasDamage() ? meta.getDamage() + 1 : 1;
+                        meta.setDamage(newDamage);
+                        rod.setItemMeta(meta);
+                    }
+                }
             }
         }
 
